@@ -1,65 +1,109 @@
-import Image from "next/image";
+import Link from "next/link";
+import {
+  BrandMark,
+  PageNav,
+  PageShell,
+} from "./components/PageShell";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <PageShell
+      width="wide"
+      nav={
+        <PageNav
+          leading={
+            <div className="flex items-center gap-sm min-w-0">
+              <BrandMark />
+              <span className="eyebrow hidden sm:inline">
+                your mindful FitnessOS
+              </span>
+            </div>
+          }
+          trailing={
+            <Link href="/integrations" className="btn-ghost shrink-0">
+              Get started →
+            </Link>
+          }
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      }
+    >
+      <section className="mb-xl sm:mb-2xl rise stagger-2">
+        <p className="eyebrow mb-md">I — Meet your Bloom</p>
+        <h1 className="display text-[44px] sm:text-[68px] md:text-[80px] leading-[1.02] tracking-[-0.025em] text-ink">
+          Bloom — <span className="display-italic">mindful</span> FitnessOS.
+        </h1>
+        <div className="rule my-lg" />
+        <p className="text-[16px] sm:text-[18px] leading-[1.6] text-graphite mb-lg">
+          Bloom connects with your existing fitness apps and devices to get
+          context of your activities, helps you track meals, and generates
+          personalized insights — so you can ACTUALLY get closer to your
+          fitness goals.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-sm">
+          <Link href="/integrations" className="btn-primary w-full sm:w-auto">
+            Get started
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="mb-xl sm:mb-2xl rise stagger-4">
+        <p className="eyebrow mb-md">II — Why Bloom?</p>
+        <h2 className="display text-[28px] sm:text-[40px] leading-[1.1] tracking-[-0.02em] text-ink mb-md">
+          Most apps see a slice.{" "}
+          <span className="display-italic">Bloom sees the whole picture.</span>
+        </h2>
+        <p className="text-[15px] sm:text-[17px] leading-[1.6] text-graphite mb-lg">
+          Your sleep app doesn&apos;t know you ran intervals yesterday. Your
+          training app doesn&apos;t know you&apos;re in your luteal phase.
+          Your food log doesn&apos;t know you&apos;re chasing a half
+          marathon. Bloom reads all of it — together — before it says a
+          single word.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-sm sm:gap-md">
+          <WhyCard
+            numeral="i."
+            title="Every signal, in one place"
+            body="Training, sleep, recovery, meals, cycle, and your stated goal — Bloom reads the full picture before it answers. No single app does this."
+          />
+          <WhyCard
+            numeral="ii."
+            title="Context that actually matters"
+            body="Bloom knows the difference between a tough day because you slept 5 hours and a tough day because you're in late luteal. Most apps can't tell them apart."
+          />
+          <WhyCard
+            numeral="iii."
+            title="Advice that fits your body"
+            body="Your goal, your training block, your week so far. Insights are personal — not generic score-based nudges everyone else gets."
+          />
+          <WhyCard
+            numeral="iv."
+            title="Sources, not black boxes"
+            body="Every insight cites what it read — which nights, which sessions, which goal. You can trust it because you can check it."
+          />
         </div>
-      </main>
-    </div>
+      </section>
+    </PageShell>
+  );
+}
+
+function WhyCard({
+  numeral,
+  title,
+  body,
+}: {
+  numeral: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <article className="card p-md sm:p-lg">
+      <span className="numeral block mb-sm">{numeral}</span>
+      <h4 className="display text-[20px] sm:text-[22px] leading-[1.2] tracking-[-0.015em] text-ink mb-sm">
+        {title}
+      </h4>
+      <p className="text-[14px] sm:text-[15px] leading-[1.6] text-graphite">
+        {body}
+      </p>
+    </article>
   );
 }

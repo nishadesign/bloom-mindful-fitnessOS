@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  goal               String
+  ageYears           Int?
+  heightCm           Float?
+  weightKg           Float?
+  sex                String?
+  weightGoal         String?
+  calorieTargetKcal  Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  integrations Integration[]
+  activities   Activity[]
+  sleepLogs    SleepLog[]
+}
+
+model SleepLog {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  source          String
+  date            DateTime
+  totalMinutes    Int
+  deepMinutes     Int
+  remMinutes      Int
+  lightMinutes    Int
+  awakeMinutes    Int
+  hrvMs           Float?
+  restingHr       Float?
+  readinessScore  Int?
+  sleepScore      Int?
+  bodyTempDelta   Float?
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, source, date])
+}
+
+model Activity {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  source         String
+  externalId     String
+  type           String
+  sportType      String
+  name           String
+  startDate      DateTime
+  distanceMeters Float
+  movingSeconds  Int
+  elapsedSeconds Int
+  elevationGain  Float
+  avgHeartrate   Float?
+  maxHeartrate   Float?
+  avgSpeed       Float?
+  calories       Float?
+  description    String?
+  createdAt      DateTime @default(now())
+
+  @@unique([source, externalId])
+}
+
+model Integration {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id])
+  provider       String
+  status         String    @default("connected")
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+  metaJson       String?
+
+  @@unique([userId, provider])
+}
