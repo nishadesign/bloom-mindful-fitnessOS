@@ -2,101 +2,37 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import TypewriterInsight from "./TypewriterInsight";
 
 type Props = {
   welcome: boolean;
-  insightHeadline: string;
-  insightSupport?: string;
   calorieTotal: number | null;
 };
 
 const SYNC_MS = 1800;
-const INSIGHT_DELAY_MS = 900;
 
-export default function DashboardReveal({
-  welcome,
-  insightHeadline,
-  insightSupport,
-  calorieTotal,
-}: Props) {
+export default function DashboardReveal({ welcome, calorieTotal }: Props) {
   const [sessionLoaded, setSessionLoaded] = useState(!welcome);
-  const [insightVisible, setInsightVisible] = useState(!welcome);
 
   useEffect(() => {
     if (!welcome) return;
-    const t1 = setTimeout(() => setSessionLoaded(true), SYNC_MS);
-    const t2 = setTimeout(
-      () => setInsightVisible(true),
-      SYNC_MS + INSIGHT_DELAY_MS,
-    );
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    const t = setTimeout(() => setSessionLoaded(true), SYNC_MS);
+    return () => clearTimeout(t);
   }, [welcome]);
 
   return (
-    <>
-      <section
-        className="mb-lg"
-        style={{
-          minHeight: welcome ? 180 : undefined,
-          opacity: insightVisible ? 1 : 0,
-          transform: insightVisible ? "translateY(0)" : "translateY(8px)",
-          transition:
-            "opacity 520ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1)",
-        }}
-        aria-hidden={!insightVisible}
-      >
-        {insightVisible && (
-          <Link
-            href="/coach?topic=insight"
-            className={
-              "card-soft card-hover block p-md sm:p-lg group" +
-              (welcome ? " insight-glow" : "")
-            }
-          >
-            {welcome ? (
-              <TypewriterInsight
-                headline={insightHeadline}
-                support={insightSupport}
-              />
-            ) : (
-              <>
-                <div className="flex items-start justify-between gap-sm mb-xs">
-                  <p className="display text-[24px] sm:text-[30px] leading-[1.2] tracking-[-0.015em] text-ink max-w-[40ch]">
-                    {insightHeadline}
-                  </p>
-                  <span className="text-[13px] text-ink group-hover:text-graphite transition-colors whitespace-nowrap shrink-0">
-                    Ask Bloom AI →
-                  </span>
-                </div>
-                {insightSupport && (
-                  <p className="text-[14px] sm:text-[15px] leading-[1.6] text-graphite mt-sm max-w-[56ch]">
-                    {insightSupport}
-                  </p>
-                )}
-              </>
-            )}
-          </Link>
+    <section className="grid grid-cols-1 sm:grid-cols-2 gap-md mb-lg rise stagger-6">
+      <article className="card p-md sm:p-lg">
+        {sessionLoaded ? <LastSession /> : <SyncingSession />}
+      </article>
+
+      <article className="card p-md sm:p-lg flex flex-col">
+        {calorieTotal != null ? (
+          <CalorieBudget total={calorieTotal} addHref="/meals" />
+        ) : (
+          <EmptyCalories />
         )}
-      </section>
-
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-md mb-lg rise stagger-5">
-        <article className="card p-md sm:p-lg">
-          {sessionLoaded ? <LastSession /> : <SyncingSession />}
-        </article>
-
-        <article className="card p-md sm:p-lg flex flex-col">
-          {calorieTotal != null ? (
-            <CalorieBudget total={calorieTotal} addHref="/meals" />
-          ) : (
-            <EmptyCalories />
-          )}
-        </article>
-      </section>
-    </>
+      </article>
+    </section>
   );
 }
 

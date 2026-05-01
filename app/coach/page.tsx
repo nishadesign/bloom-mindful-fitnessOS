@@ -4,78 +4,43 @@ import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrandMark, PageNav, PageShell } from "../components/PageShell";
+import InsightDrawer from "../components/InsightDrawer";
 
-type Source = { label: string; detail: string };
+type ToolCall = {
+  name: string;
+  input?: unknown;
+  output?: unknown;
+  ok?: boolean;
+  latencyMs?: number;
+};
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
-  toolsUsed?: string[];
-  sources?: Source[];
+  toolCalls?: ToolCall[];
+  insightId?: number | null;
 };
 
 const SUGGESTIONS = [
-  "What should my diet look like post run?",
-  "Why did I bonk yesterday?",
+  "How am I doing this week toward my goal?",
   "Am I ready for a tempo run tomorrow?",
+  "What should my diet look like post run?",
 ];
 
 const TOPIC_PROMPTS: Record<string, string> = {
   insight: "Tell me more about today's insight.",
 };
 
-const STEP_MS = 750;
-
-function pickSteps(question: string): string[] {
-  const q = question.toLowerCase();
-  if (/(post[-\s]?run|after (my |the )?run|recovery (meal|food)|refuel)/.test(q)) {
-    return [
-      "Pulling your last run from Strava",
-      "Syncing your recovery window through Oura",
-      "Checking your goal and training block",
-      "Finding a high-carb vegetarian meal",
-      "Writing it up",
-    ];
-  }
-  if (/insight/.test(q)) {
-    return [
-      "Scanning your last 3 sessions on Strava",
-      "Checking your cycle phase",
-      "Tying it back to your goal",
-      "Writing it up",
-    ];
-  }
-  if (/(bonk|tired|rough|crash|exhaust|flat|heavy|dead)/.test(q)) {
-    return [
-      "Pulling yesterday's session from Strava",
-      "Reading last night's sleep from Oura",
-      "Checking your cycle phase",
-      "Writing it up",
-    ];
-  }
-  if (/(tempo|tomorrow|ready|interval|long run|should i run)/.test(q)) {
-    return [
-      "Reading your recovery from Oura",
-      "Checking the last 48 hours on Strava",
-      "Weighing it against your goal",
-      "Writing it up",
-    ];
-  }
-  if (/(eat|food|fuel|dinner|meal|carb|lunch|tonight|snack|breakfast|nutrition)/.test(q)) {
-    return [
-      "Pulling today's training from Strava",
-      "Checking your calorie budget",
-      "Reading your goal on file",
-      "Writing it up",
-    ];
-  }
-  return [
-    "Reading your training from Strava",
-    "Reading your sleep from Oura",
-    "Pulling your goal",
-    "Writing it up",
-  ];
-}
+const SKILL_LABELS: Record<string, string> = {
+  getRecoveryState: "recovery",
+  getTrainingLoad: "training load",
+  getNutritionGaps: "nutrition",
+  getHydrationStatus: "hydration",
+  getCyclePhase: "cycle",
+  proposeAdjustment: "plan adjustment",
+  proposeHabitRestart: "habit restart",
+  draftCrewNudge: "crew nudge",
+};
 
 export default function CoachPage() {
   return (
@@ -91,9 +56,11 @@ function CoachChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
-  const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [openDrawerFor, setOpenDrawerFor] = useState<{
+    id: number;
+    question: string;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topicFiredRef = useRef(false);
 
@@ -102,7 +69,7 @@ function CoachChat() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, sending, stepIndex]);
+  }, [messages, sending]);
 
   useEffect(() => {
     if (topicFiredRef.current) return;
@@ -120,7 +87,6 @@ function CoachChat() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
 
-    const steps = pickSteps(trimmed);
     const next: ChatMessage[] = [
       ...messages,
       { role: "user", content: trimmed },
@@ -129,34 +95,16 @@ function CoachChat() {
     setInput("");
     setSending(true);
     setError(null);
-    setThinkingSteps(steps);
-    setStepIndex(0);
-
-    const stepsDone = new Promise<void>((resolve) => {
-      const timer = setInterval(() => {
-        setStepIndex((i) => {
-          const nextI = i + 1;
-          if (nextI >= steps.length) {
-            clearInterval(timer);
-            resolve();
-            return steps.length;
-          }
-          return nextI;
-        });
-      }, STEP_MS);
-    });
 
     try {
-      const [res] = await Promise.all([
-        fetch("/api/coach", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: next.map(({ role, content }) => ({ role, content })),
-          }),
+      const res = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: 1,
+          messages: next.map(({ role, content }) => ({ role, content })),
         }),
-        stepsDone,
-      ]);
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || `Request failed (${res.status})`);
@@ -166,16 +114,14 @@ function CoachChat() {
         {
           role: "assistant",
           content: data.reply || "(no reply)",
-          toolsUsed: data.toolsUsed ?? [],
-          sources: data.sources ?? [],
+          toolCalls: data.toolCalls ?? [],
+          insightId: data.insightId ?? null,
         },
       ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setSending(false);
-      setThinkingSteps([]);
-      setStepIndex(0);
     }
   }
 
@@ -185,6 +131,13 @@ function CoachChat() {
   }
 
   const empty = messages.length === 0;
+
+  function precedingUserQuestion(index: number): string {
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].role === "user") return messages[i].content;
+    }
+    return "Coach reply";
+  }
 
   return (
     <PageShell
@@ -212,15 +165,21 @@ function CoachChat() {
             <ol className="flex flex-col gap-md">
               {messages.map((m, i) => (
                 <li key={i}>
-                  <Bubble message={m} />
+                  <Bubble
+                    message={m}
+                    onOpenInsight={() => {
+                      if (!m.insightId) return;
+                      setOpenDrawerFor({
+                        id: m.insightId,
+                        question: precedingUserQuestion(i),
+                      });
+                    }}
+                  />
                 </li>
               ))}
               {sending && (
                 <li>
-                  <ThinkingSteps
-                    steps={thinkingSteps}
-                    activeIndex={stepIndex}
-                  />
+                  <Thinking />
                 </li>
               )}
             </ol>
@@ -238,9 +197,7 @@ function CoachChat() {
             id="coach-input"
             className="field flex-1"
             placeholder={
-              empty
-                ? "What should my diet look like post run?"
-                : "Ask a follow-up…"
+              empty ? SUGGESTIONS[0] : "Ask a follow-up…"
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -265,6 +222,14 @@ function CoachChat() {
           </p>
         )}
       </section>
+
+      {openDrawerFor && (
+        <InsightDrawer
+          insightId={openDrawerFor.id}
+          question={openDrawerFor.question}
+          onClose={() => setOpenDrawerFor(null)}
+        />
+      )}
     </PageShell>
   );
 }
@@ -295,10 +260,20 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
   );
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+function Bubble({
+  message,
+  onOpenInsight,
+}: {
+  message: ChatMessage;
+  onOpenInsight: () => void;
+}) {
   const isUser = message.role === "user";
-  const [showSources, setShowSources] = useState(false);
-  const hasSources = !isUser && !!message.sources && message.sources.length > 0;
+  const skills = isUser
+    ? []
+    : Array.from(
+        new Set((message.toolCalls ?? []).map((c) => c.name).filter(Boolean)),
+      );
+
   return (
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
@@ -308,39 +283,20 @@ function Bubble({ message }: { message: ChatMessage }) {
             : "max-w-[92%] text-[14px] sm:text-[15px] leading-[1.65] text-ink"
         }
       >
-        {!isUser && message.toolsUsed && message.toolsUsed.length > 0 && (
-          <p className="numeral mb-xs">
-            read · {uniq(message.toolsUsed).map(labelTool).join(" · ")}
-          </p>
-        )}
         <p className="whitespace-pre-wrap">{message.content}</p>
-        {hasSources && (
-          <div className="mt-sm">
-            <button
-              type="button"
-              onClick={() => setShowSources((v) => !v)}
-              aria-expanded={showSources}
-              className="text-[13px] text-ink underline underline-offset-2 hover:text-graphite transition-colors"
-            >
-              {showSources
-                ? "Hide sources"
-                : `Show sources (${message.sources!.length})`}
-            </button>
-            {showSources && (
-              <div className="mt-sm pt-sm border-t border-linen">
-                <p className="numeral mb-xs">sources</p>
-                <ul className="flex flex-col gap-xs">
-                  {message.sources!.map((s, i) => (
-                    <li
-                      key={i}
-                      className="text-[13px] leading-[1.45] text-graphite"
-                    >
-                      <span className="text-ink font-medium">{s.label}</span>
-                      <span className="text-smoke"> — {s.detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        {!isUser && skills.length > 0 && (
+          <div className="mt-sm flex flex-wrap gap-xs items-center">
+            {skills.map((name) => (
+              <SkillPill key={name} name={name} />
+            ))}
+            {message.insightId && (
+              <button
+                type="button"
+                onClick={onOpenInsight}
+                className="text-[12px] text-ink hover:text-graphite underline underline-offset-2 ml-xs"
+              >
+                See reasoning →
+              </button>
             )}
           </div>
         )}
@@ -349,102 +305,30 @@ function Bubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function ThinkingSteps({
-  steps,
-  activeIndex,
-}: {
-  steps: string[];
-  activeIndex: number;
-}) {
-  if (steps.length === 0) {
-    return (
-      <p className="display-italic text-[14px] text-smoke">
-        thinking<span className="inline-block animate-pulse">…</span>
-      </p>
-    );
-  }
+function SkillPill({ name }: { name: string }) {
+  const label = SKILL_LABELS[name] ?? name;
   return (
-    <ul className="flex flex-col gap-xs">
-      {steps.map((step, i) => {
-        const isActive = i === activeIndex;
-        const isDone = i < activeIndex;
-        const isPending = i > activeIndex;
-        return (
-          <li
-            key={step}
-            className="flex items-center gap-sm text-[13px] sm:text-[14px] leading-[1.55]"
-            style={{ opacity: isPending ? 0.4 : 1 }}
-          >
-            <span
-              aria-hidden
-              className="inline-flex items-center justify-center shrink-0"
-              style={{ width: 14, height: 14 }}
-            >
-              {isDone ? (
-                <span
-                  className="numeral"
-                  style={{ color: "var(--color-sand-deep)" }}
-                >
-                  ✓
-                </span>
-              ) : isActive ? (
-                <span
-                  className="inline-block animate-pulse rounded-full"
-                  style={{
-                    width: 8,
-                    height: 8,
-                    background: "var(--color-sand-deep)",
-                  }}
-                />
-              ) : (
-                <span
-                  className="inline-block rounded-full"
-                  style={{
-                    width: 6,
-                    height: 6,
-                    background: "var(--color-linen)",
-                  }}
-                />
-              )}
-            </span>
-            <span
-              className={
-                isDone
-                  ? "text-smoke"
-                  : isActive
-                    ? "display-italic text-ink"
-                    : "text-smoke"
-              }
-            >
-              {step}
-              {isActive && (
-                <span className="inline-block animate-pulse">…</span>
-              )}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+    <span
+      className="text-[11px] text-ink"
+      style={{
+        padding: "3px 10px",
+        borderRadius: 999,
+        background: "var(--color-paper)",
+        border: "1px solid var(--color-linen)",
+        letterSpacing: "0.02em",
+      }}
+    >
+      {label}
+    </span>
   );
 }
 
-function uniq(xs: string[]): string[] {
-  return Array.from(new Set(xs));
-}
-
-function labelTool(name: string): string {
-  switch (name) {
-    case "getRecentActivities":
-      return "training";
-    case "getRecentSleep":
-      return "sleep";
-    case "getUserGoal":
-      return "goal";
-    case "getCyclePhase":
-      return "cycle";
-    default:
-      return name;
-  }
+function Thinking() {
+  return (
+    <p className="display-italic text-[14px] text-smoke">
+      thinking<span className="inline-block animate-pulse">…</span>
+    </p>
+  );
 }
 
 function romanize(n: number): string {

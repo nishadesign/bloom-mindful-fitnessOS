@@ -1,9 +1,14 @@
+import Link from "next/link";
 import { BrandMark, PageNav, PageShell } from "../components/PageShell";
 import DashboardReveal from "../components/DashboardReveal";
+import InsightCard from "../components/InsightCard";
+import TodayPlan from "../components/TodayPlan";
 import { prisma } from "@/lib/db";
 import { getDemoUser } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
+
+type InsightAction = "pending" | "accepted" | "dismissed";
 
 export default async function DashboardPage({
   searchParams,
@@ -26,7 +31,23 @@ export default async function DashboardPage({
 
   const weekDays = buildWeek(weekActivities);
 
-  const insight = buildInsight();
+  const latestInsight = await prisma.insight.findFirst({
+    where: { userId: user.id, type: "coach_reply" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const now = new Date();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const todayPlan = await prisma.planDay.findFirst({
+    where: {
+      userId: user.id,
+      date: {
+        gte: new Date(now.getTime() - DAY_MS),
+        lte: new Date(now.getTime() + DAY_MS),
+      },
+    },
+    orderBy: { date: "desc" },
+  });
 
   const calorieBudgetToday = user.calorieTargetKcal ?? null;
 
@@ -50,10 +71,40 @@ export default async function DashboardPage({
         <WeekStreak days={weekDays} />
       </section>
 
+      {latestInsight ? (
+        <section className="rise stagger-4">
+          <InsightCard
+            id={latestInsight.id}
+            title={latestInsight.title}
+            body={latestInsight.body}
+            sourceRefs={latestInsight.sourceRefs}
+            action={latestInsight.action as InsightAction}
+          />
+        </section>
+      ) : (
+        <section className="mb-lg rise stagger-4">
+          <Link
+            href="/coach"
+            className="card-soft card-hover block p-md sm:p-lg"
+          >
+            <p className="eyebrow mb-xs">No read yet</p>
+            <p className="display text-[22px] sm:text-[26px] leading-[1.2] tracking-[-0.015em] text-ink">
+              Ask Bloom how you&apos;re doing →
+            </p>
+          </Link>
+        </section>
+      )}
+
+      <section className="mb-lg rise stagger-5">
+        <TodayPlan
+          plannedWorkout={todayPlan?.plannedWorkout ?? null}
+          adjustedWorkout={todayPlan?.adjustedWorkout ?? null}
+          adjustmentReason={todayPlan?.adjustmentReason ?? null}
+        />
+      </section>
+
       <DashboardReveal
         welcome={welcome}
-        insightHeadline={insight.headline}
-        insightSupport={insight.support}
         calorieTotal={calorieBudgetToday}
       />
     </PageShell>
@@ -134,16 +185,6 @@ function StreakCell({ day }: { day: WeekDay }) {
       }}
     />
   );
-}
-
-type Insight = { headline: string; support?: string };
-
-function buildInsight(): Insight {
-  return {
-    headline: "Get in an interval session.",
-    support:
-      "Based on your last 3 sessions, try doing an interval session today. You're in the luteal phase, so keep the efforts honest — push only as much as it feels right.",
-  };
 }
 
 function startOfDayUTC(d: Date) {

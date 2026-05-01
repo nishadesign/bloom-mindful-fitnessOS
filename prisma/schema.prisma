@@ -20,9 +20,116 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now()) @updatedAt
 
-  integrations Integration[]
-  activities   Activity[]
-  sleepLogs    SleepLog[]
+  integrations   Integration[]
+  activities     Activity[]
+  sleepLogs      SleepLog[]
+  goals          Goal[]
+  insights       Insight[]
+  planDays       PlanDay[]
+  nutritionLogs  NutritionLog[]
+  hydrationLogs  HydrationLog[]
+  cycleEvents    CycleEvent[]
+  habitNudges    HabitNudge[]
+  agentTraces    AgentTrace[]
+}
+
+model Goal {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  target     String
+  targetDate DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model Insight {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  title      String
+  body       String
+  sourceRefs String
+  action     String   @default("pending")
+  actedAt    DateTime?
+  createdAt  DateTime @default(now())
+
+  planDays    PlanDay[]
+  agentTraces AgentTrace[]
+}
+
+model AgentTrace {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  insightId    Int?
+  insight      Insight? @relation(fields: [insightId], references: [id])
+  skillName    String
+  input        String
+  output       String
+  ok           Boolean
+  errorMessage String?
+  latencyMs    Int
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([skillName, createdAt])
+}
+
+model PlanDay {
+  id                Int      @id @default(autoincrement())
+  userId            Int
+  user              User     @relation(fields: [userId], references: [id])
+  date              DateTime
+  plannedWorkout    String
+  adjustedWorkout   String?
+  adjustmentReason  String?
+  insightId         Int?
+  insight           Insight? @relation(fields: [insightId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model NutritionLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  kcal      Int
+  proteinG  Int
+  notes     String?
+
+  @@unique([userId, date])
+}
+
+model HydrationLog {
+  id     Int      @id @default(autoincrement())
+  userId Int
+  user   User     @relation(fields: [userId], references: [id])
+  date   DateTime
+  ml     Int
+
+  @@unique([userId, date])
+}
+
+model CycleEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  phase     String
+  startDate DateTime
+  endDate   DateTime?
+}
+
+model HabitNudge {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  body       String
+  createdAt  DateTime @default(now())
+  acceptedAt DateTime?
 }
 
 model SleepLog {
