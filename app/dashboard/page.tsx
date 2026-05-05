@@ -74,6 +74,7 @@ export default async function DashboardPage({
       {latestInsight ? (
         <section className="rise stagger-4">
           <InsightCard
+            key={latestInsight.id}
             id={latestInsight.id}
             title={latestInsight.title}
             body={latestInsight.body}

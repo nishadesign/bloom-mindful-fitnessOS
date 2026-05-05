@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import InsightDrawer from "./InsightDrawer";
+import MarkdownText from "./MarkdownText";
 
 type ToolCall = {
   name: string;
@@ -17,6 +19,9 @@ type Props = {
   sourceRefs: string;
   action: Action;
 };
+
+const REGEN_PROMPT =
+  "Given my latest data, what's your honest read on how I'm doing and what should I do about today's workout?";
 
 const SKILL_LABELS: Record<string, string> = {
   getRecoveryState: "recovery",
@@ -47,32 +52,56 @@ export default function InsightCard({
   sourceRefs,
   action: initialAction,
 }: Props) {
+  const router = useRouter();
   const [action, setAction] = useState<Action>(initialAction);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [submitting, setSubmitting] = useState<null | "accept" | "dismiss">(null);
+  const [submitting, setSubmitting] = useState<
+    null | "accept" | "regenerate"
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [crewNudge, setCrewNudge] = useState<string | null>(null);
   const [crewLoading, setCrewLoading] = useState(false);
 
   const skills = useMemo(() => parseSkills(sourceRefs), [sourceRefs]);
 
-  async function submitAction(next: "accepted" | "dismissed") {
-    setSubmitting(next === "accepted" ? "accept" : "dismiss");
+  async function acceptInsight() {
+    setSubmitting("accept");
     setError(null);
     const prev = action;
-    setAction(next);
+    setAction("accepted");
     try {
       const res = await fetch(`/api/insights/${id}/action`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: next }),
+        body: JSON.stringify({ action: "accepted" }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? "Action failed");
       }
+      router.refresh();
     } catch (e) {
       setAction(prev);
+      setError(e instanceof Error ? e.message : "unknown");
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function regenerateInsight() {
+    setSubmitting("regenerate");
+    setError(null);
+    try {
+      const question = title?.trim() || REGEN_PROMPT;
+      const res = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: 1, question }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? "Couldn't regenerate");
+      router.refresh();
+    } catch (e) {
       setError(e instanceof Error ? e.message : "unknown");
     } finally {
       setSubmitting(null);
@@ -88,6 +117,7 @@ export default function InsightCard({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           userId: 1,
+          kind: "draft",
           question: "draft a one-liner for my crew about today's adjustment",
         }),
       });
@@ -117,7 +147,8 @@ export default function InsightCard({
 
   const cardClass =
     "card-soft card-hover block p-md sm:p-lg w-full cursor-pointer " +
-    (action === "dismissed" ? "opacity-60" : "");
+    (action === "dismissed" ? "opacity-60" : "") +
+    (submitting === "regenerate" ? " opacity-70" : "");
 
   return (
     <>
@@ -139,9 +170,10 @@ export default function InsightCard({
             </span>
           </div>
 
-          <p className="text-[14px] sm:text-[15px] leading-[1.6] text-graphite mt-sm max-w-[56ch] whitespace-pre-wrap">
-            {body}
-          </p>
+          <MarkdownText
+            text={body}
+            className="text-[14px] sm:text-[15px] leading-[1.6] text-graphite mt-sm max-w-[56ch]"
+          />
 
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-xs mt-md">
@@ -158,7 +190,7 @@ export default function InsightCard({
                   type="button"
                   className="btn-primary"
                   disabled={submitting !== null}
-                  onClick={() => submitAction("accepted")}
+                  onClick={acceptInsight}
                 >
                   {submitting === "accept" ? "Accepting…" : "Accept"}
                 </button>
@@ -166,9 +198,12 @@ export default function InsightCard({
                   type="button"
                   className="btn-ghost"
                   disabled={submitting !== null}
-                  onClick={() => submitAction("dismissed")}
+                  onClick={regenerateInsight}
+                  title="Re-read your latest data and draft a new insight"
                 >
-                  {submitting === "dismiss" ? "Dismissing…" : "Dismiss"}
+                  {submitting === "regenerate"
+                    ? "Regenerating…"
+                    : "Regenerate"}
                 </button>
               </>
             )}
@@ -195,9 +230,10 @@ export default function InsightCard({
           {crewNudge && (
             <div className="mt-md card p-md">
               <p className="eyebrow mb-xs">Draft</p>
-              <p className="text-[14px] leading-[1.6] text-ink whitespace-pre-wrap">
-                {crewNudge}
-              </p>
+              <MarkdownText
+                text={crewNudge}
+                className="text-[14px] leading-[1.6] text-ink"
+              />
             </div>
           )}
 

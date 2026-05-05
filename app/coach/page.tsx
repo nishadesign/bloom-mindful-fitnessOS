@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrandMark, PageNav, PageShell } from "../components/PageShell";
 import InsightDrawer from "../components/InsightDrawer";
+import MarkdownText from "../components/MarkdownText";
 
 type ToolCall = {
   name: string;
@@ -283,7 +284,11 @@ function Bubble({
             : "max-w-[92%] text-[14px] sm:text-[15px] leading-[1.65] text-ink"
         }
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <MarkdownText text={message.content} />
+        )}
         {!isUser && skills.length > 0 && (
           <div className="mt-sm flex flex-wrap gap-xs items-center">
             {skills.map((name) => (

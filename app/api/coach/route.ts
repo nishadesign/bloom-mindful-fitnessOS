@@ -15,6 +15,7 @@ type CoachRequest = {
   userId?: number;
   question?: string;
   messages?: ChatMessage[];
+  kind?: "insight" | "draft";
 };
 
 type ToolCallRecord = {
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as CoachRequest;
     userId = body.userId ?? 1;
+    const kind = body.kind ?? "insight";
     const question = extractQuestion(body);
     if (!question) {
       return NextResponse.json({ error: "No question" }, { status: 400 });
@@ -178,7 +180,7 @@ export async function POST(req: Request) {
     const insight = await prisma.insight.create({
       data: {
         userId,
-        type: "coach_reply",
+        type: kind === "draft" ? "coach_draft" : "coach_reply",
         title: question.slice(0, 80),
         body: finalText,
         sourceRefs: JSON.stringify(toolCalls),
